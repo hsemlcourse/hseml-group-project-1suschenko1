@@ -1,0 +1,9 @@
+version: "3.9"
+
+services:
+  ml-project:
+    build: .
+    container_name: ml_project
+    volumes:
+      - .:/app
+    command: python src/train.py
