@@ -134,6 +134,12 @@ python -m pytest tests
 15 tests passed
 ```
 
+### Проверка качества кода
+
+```
+ruff check src tests --line-length 120
+```
+
 ### 7. Запуск через Docker
 
 ```
