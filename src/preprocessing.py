@@ -1,5 +1,9 @@
 import os
+
 import pandas as pd
+
+
+TARGET = "payment_value"
 
 
 def load_raw_data(base_dir):
@@ -27,22 +31,93 @@ def merge_data(customers, orders, items, payments, products, sellers, translatio
     return df
 
 
-def clean_data(df, target="payment_value"):
-    # удалить дубликаты
+def add_features(df):
+    df = df.copy()
+
+    date_columns = [
+        "order_purchase_timestamp",
+        "order_approved_at",
+        "order_delivered_carrier_date",
+        "order_delivered_customer_date",
+        "order_estimated_delivery_date",
+        "shipping_limit_date",
+    ]
+
+    for column in date_columns:
+        if column in df.columns:
+            df[column] = pd.to_datetime(df[column], errors="coerce")
+
+    if "order_purchase_timestamp" in df.columns:
+        df["order_purchase_month"] = df["order_purchase_timestamp"].dt.month
+        df["order_purchase_dayofweek"] = df["order_purchase_timestamp"].dt.dayofweek
+        df["order_purchase_hour"] = df["order_purchase_timestamp"].dt.hour
+
+    if {"order_approved_at", "order_purchase_timestamp"}.issubset(df.columns):
+        df["approval_days"] = (
+            df["order_approved_at"] - df["order_purchase_timestamp"]
+        ).dt.total_seconds() / 86400
+
+    if {"order_delivered_customer_date", "order_purchase_timestamp"}.issubset(df.columns):
+        df["delivery_days"] = (
+            df["order_delivered_customer_date"] - df["order_purchase_timestamp"]
+        ).dt.total_seconds() / 86400
+
+    if {"order_estimated_delivery_date", "order_delivered_customer_date"}.issubset(df.columns):
+        df["delivery_delay_days"] = (
+            df["order_delivered_customer_date"] - df["order_estimated_delivery_date"]
+        ).dt.total_seconds() / 86400
+
+    if {"shipping_limit_date", "order_purchase_timestamp"}.issubset(df.columns):
+        df["shipping_limit_days"] = (
+            df["shipping_limit_date"] - df["order_purchase_timestamp"]
+        ).dt.total_seconds() / 86400
+
+    if {
+        "product_length_cm",
+        "product_height_cm",
+        "product_width_cm",
+    }.issubset(df.columns):
+        df["product_volume_cm3"] = (
+            df["product_length_cm"]
+            * df["product_height_cm"]
+            * df["product_width_cm"]
+        )
+
+    if {"product_weight_g", "product_volume_cm3"}.issubset(df.columns):
+        df["product_density"] = df["product_weight_g"] / (df["product_volume_cm3"] + 1)
+
+    if {"freight_value", "price"}.issubset(df.columns):
+        df["freight_to_price_ratio"] = df["freight_value"] / (df["price"] + 1)
+        df["total_item_cost"] = df["price"] + df["freight_value"]
+
+    if {"price", "product_weight_g"}.issubset(df.columns):
+        df["price_per_weight"] = df["price"] / (df["product_weight_g"] + 1)
+
+    if {"payment_value", "payment_installments"}.issubset(df.columns):
+        df["payment_per_installment"] = (
+            df["payment_value"] / (df["payment_installments"] + 1)
+        )
+
+    return df
+
+
+def clean_data(df, target=TARGET):
+    df = df.copy()
+
     df = df.drop_duplicates()
 
-    # оставить только числовые признаки
-    df = df.select_dtypes(include=["number"])
+    if target not in df.columns:
+        raise ValueError(f"В данных нет целевой переменной: {target}")
 
-    # удалить строки без target
     df = df.dropna(subset=[target])
 
-    # заполнить пропуски
-    df = df.fillna(0)
-
-    # удалить выбросы (99 перцентиль)
     q99 = df[target].quantile(0.99)
     df = df[df[target] <= q99]
+
+    df = df.select_dtypes(include=["number"])
+
+    df = df.replace([float("inf"), -float("inf")], pd.NA)
+    df = df.fillna(0)
 
     return df
 
@@ -66,6 +141,9 @@ def main():
     print("Объединение таблиц...")
     df = merge_data(*data)
 
+    print("Создание новых признаков...")
+    df = add_features(df)
+
     print("Очистка данных...")
     df = clean_data(df)
 
@@ -73,6 +151,8 @@ def main():
     save_processed_data(df, base_dir)
 
     print("Готово! Размер датасета:", df.shape)
+    print("Колонки итогового датасета:")
+    print(df.columns.tolist())
 
 
 if __name__ == "__main__":
