@@ -146,12 +146,6 @@ ruff check src tests --line-length 120
 docker-compose up --build
 ```
 
-### Проверка качества кода
-
-```
-ruff check src tests --line-length 120
-```
-
 ## Данные
 
 В проекте используется датасет **Brazilian E-Commerce Public Dataset by Olist**.
