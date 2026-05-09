@@ -150,6 +150,7 @@ docker-compose up --build
 
 ```
 ruff check src tests --line-length 120
+```
 
 ## Данные
 
