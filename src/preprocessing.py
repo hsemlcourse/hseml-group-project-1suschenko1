@@ -93,11 +93,6 @@ def add_features(df):
     if {"price", "product_weight_g"}.issubset(df.columns):
         df["price_per_weight"] = df["price"] / (df["product_weight_g"] + 1)
 
-    if {"payment_value", "payment_installments"}.issubset(df.columns):
-        df["payment_per_installment"] = (
-            df["payment_value"] / (df["payment_installments"] + 1)
-        )
-
     return df
 
 
